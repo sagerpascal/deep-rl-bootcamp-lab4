@@ -42,12 +42,14 @@ def point_get_logp_action(theta, ob, action):
 def point_get_grad_logp_action(theta, ob, action):
     """
     :param theta: A matrix of size |A| * (|S|+1)
-    :param ob: A vector of size |S|
-    :param action: A vector of size |A|
+    :param ob: A vector of size |S| -> state
+    :param action: A vector of size |A| -> action
     :return: A matrix of size |A| * (|S|+1)
     """
-    grad = np.zeros_like(theta)
-    "*** YOUR CODE HERE ***"
+    ob_1 = include_bias(ob)
+    mean = theta.dot(ob_1)
+    zs = action - mean
+    grad = np.outer(zs, ob_1)
     return grad
 
 
@@ -112,8 +114,11 @@ def cartpole_get_grad_logp_action(theta, ob, action):
     :param action: An integer
     :return: A matrix of size |A| * (|S|+1)
     """
-    grad = np.zeros_like(theta)
-    "*** YOUR CODE HERE ***"
+    ob_1 = include_bias(ob)
+    logits = compute_logits(theta, ob)
+    e_a = np.zeros(theta.shape[0])
+    e_a[action] = 1.
+    grad = np.outer(e_a - softmax(logits), ob_1)
     return grad
 
 
@@ -245,9 +250,8 @@ def main(env_id, batch_size, discount, learning_rate, n_itrs, render, use_baseli
                     matrix of size |A| * (|S|+1) )
                     :return: A tuple, consisting of a scalar and a matrix of size |A| * (|S|+1)
                     """
-                    R_t = 0.
-                    pg_theta = np.zeros_like(theta)
-                    "*** YOUR CODE HERE ***"
+                    R_t = discount * R_tplus1 + r_t
+                    pg_theta = get_grad_logp_action(theta, s_t, a_t) * (R_t - b_t)
                     return R_t, pg_theta
 
                 # Test the implementation, but only once
@@ -278,7 +282,7 @@ def main(env_id, batch_size, discount, learning_rate, n_itrs, render, use_baseli
             """
             baselines = np.zeros(len(all_returns))
             for t in range(len(all_returns)):
-                "*** YOUR CODE HERE ***"
+                baselines[t] = np.mean(all_returns[t]) if len(all_returns[t]) > 0 else 0
             return baselines
 
         if use_baseline:
@@ -306,7 +310,11 @@ def main(env_id, batch_size, discount, learning_rate, n_itrs, render, use_baseli
                 """
                 d = len(theta.flatten())
                 F = np.zeros((d, d))
-                "*** YOUR CODE HERE ***"
+                for obs, act in zip(all_observations, all_actions):
+                    grad_logp_act = get_grad_logp_action(theta, obs, act)
+                    grad_logp_act = grad_logp_act.flatten()
+                    F += np.outer(grad_logp_act, grad_logp_act)
+                F /= len(all_actions)
                 return F
 
             def compute_natural_gradient(F, grad, reg=1e-4):
@@ -316,9 +324,11 @@ def main(env_id, batch_size, discount, learning_rate, n_itrs, render, use_baseli
                 :param reg: A scalar
                 :return: A matrix of size |A| * (|S|+1)
                 """
-                natural_grad = np.zeros_like(grad)
                 "*** YOUR CODE HERE ***"
-                return natural_grad
+                I = np.eye(F.shape[0])
+                F_inv = np.linalg.inv(F + reg * I)
+                natural_grad = F_inv.dot(grad.flatten())
+                return natural_grad.reshape(grad.shape)
 
             def compute_step_size(F, natural_grad, natural_step_size):
                 """
@@ -327,8 +337,8 @@ def main(env_id, batch_size, discount, learning_rate, n_itrs, render, use_baseli
                 :param natural_step_size: A scalar
                 :return: A scalar
                 """
-                step_size = 0.
-                "*** YOUR CODE HERE ***"
+                g = natural_grad.reshape(-1, 1)
+                step_size = np.sqrt((2 * natural_step_size) / np.dot(np.dot(g.T, F), g))
                 return step_size
 
             test_once(compute_fisher_matrix)
