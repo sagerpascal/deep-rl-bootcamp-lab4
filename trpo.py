@@ -174,7 +174,7 @@ def trpo(env, env_maker, policy, baseline, n_envs=mp.cpu_count(), last_iter=-1, 
                     :param new_dists: An instance of subclass of Distribution
                     :return: A chainer variable, which should be a scalar
                     """
-                    kl = Variable(np.array(0., dtype=np.float3))
+                    kl = Variable(np.array(0., dtype=np.float32))
                     "*** YOUR CODE HERE ***"
                     kl += F.mean(old_dists.kl_div(new_dists))
                     return kl
